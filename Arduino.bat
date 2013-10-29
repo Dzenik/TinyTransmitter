@@ -1,0 +1,1 @@
+avrdude -U flash:w:"default\t85Node.hex":i -v -p t85 -b 19200 -c arduino -P COM8
