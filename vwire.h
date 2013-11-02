@@ -27,7 +27,7 @@
 
 #define membersof(x) (sizeof(x)/sizeof(x[0]))
 
-#define VM_PIN 1
+#define VM_PIN PB4
 
 // Maximum number of bytes in a message, counting the byte count and FCS
 #define VW_MAX_MESSAGE_LEN 30

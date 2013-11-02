@@ -4,6 +4,7 @@
 #include "EasyTransferVW.h"
 
 #define NODE_ID 0x01
+#define PWR_PIN PB2
 
 struct SEND_DATA_STRUCTURE {
   byte device_id;
@@ -14,43 +15,30 @@ struct SEND_DATA_STRUCTURE {
 
 volatile unsigned int count = 1;
 
-void init(void) {
+int __attribute__ ((__OS_main__)) main(void) {
+  
+  osccal();
+
   cli();
 
-}
-
-void setup(void) {
-  SET(DDRB, PB2);
+  SET(DDRB, PWR_PIN);
   srandom(1024);
   ET_begin(details(mydata));
-  vw_setup(2000);
-}
-
-void loop(void) {
-  mydata.device_id = NODE_ID;
-  mydata.packet_id = random() % 65354;
-  mydata.command = 0x14;
-  mydata.data = count;
-  
-  sbi(PORTB, PB2);
-  ET_sendData();
-  cbi(PORTB, PB2);
-  _delay_ms(1000);
-  count += 1;
-}
-
-int main(void) {
-  
-  //OSCCAL = 0x59;
-
-  init();
-  
-  setup();
+  vw_setup(4000);
   
   sei();
   
   for(;;) {
-    loop();
+    mydata.device_id = NODE_ID;
+    mydata.packet_id = random() % 65354;
+    mydata.command = 0x14;
+    mydata.data = count;
+  
+    sbi(PORTB, PWR_PIN);
+    ET_sendData();
+    cbi(PORTB, PWR_PIN);
+    _delay_ms(500);
+    count += 1;
   } 
 
   return 0;

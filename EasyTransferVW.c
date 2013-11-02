@@ -27,6 +27,6 @@ void ET_sendData(){
 	temp_buffer[size+3] = CS;
 	
 	vw_send((uint8_t *)temp_buffer, size+4);
-    vw_wait_tx(); // Wait until the whole message is gone
+  vw_wait_tx(); // Wait until the whole message is gone
 
 }

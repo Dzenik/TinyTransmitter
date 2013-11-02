@@ -1,6 +1,8 @@
 #include "vwire.h"
 #include <util/crc16.h>
 
+#define SAMPLES_PER_BIT 8
+
 static uint8_t vw_tx_buf[(VW_MAX_MESSAGE_LEN * 2) + VW_HEADER_LEN] 
      = {0x2a, 0x2a, 0x2a, 0x2a, 0x2a, 0x2a, 0x38, 0x2c};
 
@@ -55,31 +57,67 @@ uint8_t vw_symbol_6to4(uint8_t symbol)
   return 0; // Not found
 }
 
-// Speed is in bits per sec RF rate
-void vw_setup(unsigned int speed)
+/** Prescale table for Timer1. Index is prescale setting */
+static const uint16_t prescale[] PROGMEM = {
+#if defined(__ARDUINO_TINYX5__)
+  0, 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384 
+#else
+  0, 1, 8, 64, 256, 1024
+#endif
+};
+
+/**
+ * Calculate timer setting, prescale and count value, given speed (bps),
+ * number of bits in timer. Returns zero(0) if fails otherwise prescale
+ * value/index, and timer top.
+ * @param[in] speed bits per second, transmitter/receiver.
+ * @param[in] bits number of bits in counter (8 or 16 bit timer).
+ * @param[out] nticks timer top value.
+ * @return prescale or zero(0).
+ */
+static uint8_t timer_setting(uint16_t speed, uint8_t bits, uint16_t* nticks) 
 {
-  // Calculate the OCR1A overflow count based on the required bit speed
-  // and CPU clock rate
-  uint16_t ocr0a = (F_CPU / 8UL) / speed;
+  uint16_t max_ticks = (1 << bits) - 1;
+  uint8_t res = 0;
+  for (uint8_t i = membersof(prescale) - 1; i > 0; i--) {
+    uint16_t scale = (uint16_t) pgm_read_word(&prescale[i]);
+    uint16_t count = (F_CPU / scale) / speed;
+    if (count > res && count < max_ticks) {
+      *nticks = count;
+      res = i;
+    }
+  }
+  return (res);
+}
 
+// Speed is in bits per sec RF rate
+uint8_t vw_setup(unsigned int speed)
+{
+  // Number of prescaled ticks needed
+  uint16_t nticks = 0;
+
+  // Bit values for prescale register: CS0[2:0]
+  uint8_t prescaler;
+
+  prescaler = timer_setting(speed * SAMPLES_PER_BIT, 8, &nticks);
+  if (!prescaler) return false;
+
+  // Turn on CTC mode / Output Compare pins disconnected
   TCCR0A = 0;
-  TCCR0A = _BV(WGM01); // Turn on CTC mode / Output Compare pins disconnected
-
-  // convert prescaler index to TCCRnB prescaler bits CS00, CS01, CS02
+  TCCR0A = _BV(WGM01);
   TCCR0B = 0;
-  TCCR0B = _BV(CS01); // set CS00, CS01, CS02 (other bits not needed)
+  TCCR0B = prescaler;
 
-  // Set up timer1 for a tick every 62.50 microseconds 
-  // for 2000 bits per sec
   // Number of ticks to count before firing interrupt
-  OCR0A = 0x3e; //(uint8_t)ocr0a;
+  OCR0A = (uint8_t)nticks;
 
-  // Set mask to fire interrupt when OCF0A bit is set in TIFR0
   TIMSK |= _BV(OCIE0A);
 
   // Set up digital IO pins
-  SET(DDRB, VM_PIN);
-  CLR(PORTB, VM_PIN);
+  sbi(DDRB, VM_PIN);
+  cbi(PORTB, VM_PIN);
+
+  return true;
 }
 
 // Start the transmitter, call when the tx buffer is ready to go and vw_tx_len is
@@ -91,7 +129,7 @@ void vw_tx_start()
   vw_tx_sample = 0;
 
   // Enable the transmitter hardware
-  SET(PORTB, VM_PIN);
+  sbi(PORTB, VM_PIN);
 
   // Next tick interrupt will send the first bit
   vw_tx_enabled = true;
@@ -101,7 +139,7 @@ void vw_tx_start()
 void vw_tx_stop()
 {
   // Disable the transmitter hardware
-  CLR(PORTB, VM_PIN);
+  cbi(PORTB, VM_PIN);
 
   // No more ticks for the transmitter
   vw_tx_enabled = false;

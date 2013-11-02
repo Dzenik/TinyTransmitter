@@ -13,16 +13,6 @@
 #define INPUT 0x0
 #define OUTPUT 0x1
 
-#define true 0x1
-#define false 0x0
-
-#ifndef cbi
-#define cbi(sfr, bit) (_SFR_BYTE(sfr) &= ~_BV(bit))
-#endif
-#ifndef sbi
-#define sbi(sfr, bit) (_SFR_BYTE(sfr) |= _BV(bit))
-#endif
-
 #define clockCyclesPerMicrosecond() ( F_CPU / 1000000L )
 #define clockCyclesToMicroseconds(a) ( (a) / clockCyclesPerMicrosecond() )
 #define microsecondsToClockCycles(a) ( (a) * clockCyclesPerMicrosecond() )
@@ -44,7 +34,7 @@ typedef uint8_t byte;
 
 #ifndef OSCCAL
 // program memory location of the internal oscillator "calibration byte"
-#define OSCCAL 1024  /* default to last byte of program memory */
+#define OSCCAL 8192  /* default to last byte of program memory */
 #endif
 
 #define _osccal(addr)                                \
